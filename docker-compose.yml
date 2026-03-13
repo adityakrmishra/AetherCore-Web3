@@ -1,0 +1,165 @@
+# =============================================================
+#  AetherCore-Web3 | /docker-compose.yml
+#  Author  : AetherCore Team
+#  Version : 1.0.0
+#  Date    : 2026-03-12
+# =============================================================
+#
+#  PURPOSE:
+#  Spins up the full AetherCore-Web3 local development environment
+#  with a single command:
+#
+#    docker compose up --build
+#
+#  SERVICES:
+#  ┌─────────────────┬────────┬──────────────────────────────────┐
+#  │ Service         │ Port   │ Description                      │
+#  ├─────────────────┼────────┼──────────────────────────────────┤
+#  │ db              │ 3306   │ MySQL 8.0 database               │
+#  │ php-backend     │ 8080   │ Apache/PHP 8.2 API backend       │
+#  │ react-app       │ 3000   │ React Vite dev server            │
+#  │ angular-app     │ 4200   │ Angular dev server               │
+#  └─────────────────┴────────┴──────────────────────────────────┘
+#
+#  PREREQUISITES:
+#  - Docker Desktop installed and running
+#  - /backend-php/.env created from /backend-php/.env.example
+#  - /frontend-react/.env.local created with contract addresses
+#  - /frontend-angular/src/environments/environment.ts configured
+#
+#  DATABASE INITIALIZATION:
+#  The `db` service auto-runs /backend-php/database.sql on first boot
+#  via the Docker entrypoint's /docker-entrypoint-initdb.d/ mechanism.
+#  Data is persisted in the `mysql_data` named volume between restarts.
+#
+#  USEFUL COMMANDS:
+#    docker compose up -d            # Start all services in background
+#    docker compose logs -f          # Follow all service logs
+#    docker compose logs php-backend # Follow a specific service
+#    docker compose down             # Stop all services
+#    docker compose down -v          # Stop + delete volumes (fresh DB)
+#    docker compose exec db mysql -u root -p  # MySQL shell access
+# =============================================================
+
+name: aethercore-web3
+
+# ── Named Volumes ──────────────────────────────────────────────────────────────
+# Persists MySQL data across `docker compose down` restarts.
+# Use `docker compose down -v` to wipe the database for a fresh start.
+volumes:
+  mysql_data:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+# All services share one bridge network for internal DNS resolution.
+# e.g., `php-backend` can reach MySQL at hostname `db` (not 127.0.0.1).
+networks:
+  aethercore_net:
+    driver: bridge
+
+# ── Services ───────────────────────────────────────────────────────────────────
+services:
+
+  # ── 1. MySQL 8.0 Database ────────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: aethercore_db
+    restart: unless-stopped
+    environment:
+      # These map to the DB_* variables in /backend-php/.env
+      # Change MYSQL_ROOT_PASSWORD in production — never use `root` as a password.
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE:      aethercore_db
+      MYSQL_USER:          aethercore_user
+      MYSQL_PASSWORD:      aethercore_password
+    ports:
+      # Expose MySQL on localhost:3306 for external tools (TablePlus, DBeaver, etc.)
+      # Remove this ports block in production — only internal access needed.
+      - "3306:3306"
+    volumes:
+      # Persist database data in a named volume
+      - mysql_data:/var/lib/mysql
+      # Auto-initialize schema on first boot (runs any .sql files here alphabetically)
+      - ./backend-php/database.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    networks:
+      - aethercore_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout:  5s
+      retries:  10
+      start_period: 30s  # Give MySQL time to initialize before health checks begin
+
+  # ── 2. PHP/Apache Backend ────────────────────────────────────────────────────
+  php-backend:
+    build:
+      context: ./backend-php
+      dockerfile: Dockerfile  # See /backend-php/Dockerfile
+    container_name: aethercore_php_backend
+    restart: unless-stopped
+    ports:
+      # API accessible at http://localhost:8080 from the host machine
+      # React (localhost:3000) and Angular (localhost:4200) send requests here.
+      - "8080:80"
+    volumes:
+      # Mount source code for live reloading during development
+      - ./backend-php:/var/www/html:cached
+    environment:
+      # Override .env values for Docker (uses Docker's internal hostname `db`)
+      DB_HOST:     db                    # Internal Docker DNS name for the `db` service
+      DB_PORT:     3306
+      DB_NAME:     aethercore_db
+      DB_USER:     aethercore_user
+      DB_PASSWORD: aethercore_password
+      APP_ENV:     development
+    depends_on:
+      db:
+        condition: service_healthy  # Wait for MySQL to be ready before starting PHP
+    networks:
+      - aethercore_net
+
+  # ── 3. React Vite Dev Server ──────────────────────────────────────────────────
+  react-app:
+    image: node:20-alpine
+    container_name: aethercore_react
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    # `--host 0.0.0.0` is critical: Vite only binds to localhost by default,
+    # which is unreachable from outside the container.
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend-react:/app:cached
+      # Anonymous volume prevents host node_modules from overriding container's
+      - /app/node_modules
+    environment:
+      # Vite reads VITE_* env vars — set your deployed contract addresses here.
+      VITE_LOCAL_CORE_ADDRESS:    ""   # Filled after `npx hardhat run scripts/deploy.js --network localhost`
+      VITE_LOCAL_TOKEN_ADDRESS:   ""
+      VITE_SEPOLIA_CORE_ADDRESS:  ""
+      VITE_SEPOLIA_TOKEN_ADDRESS: ""
+      VITE_API_BASE_URL:          "http://localhost:8080"
+    networks:
+      - aethercore_net
+
+  # ── 4. Angular Dev Server ─────────────────────────────────────────────────────
+  angular-app:
+    image: node:20-alpine
+    container_name: aethercore_angular
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npx ng serve --host 0.0.0.0 --port 4200 --disable-host-check"
+    # `--disable-host-check` prevents Angular's dev server from blocking requests
+    # that arrive with a hostname other than `localhost` (common in containers).
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend-angular:/app:cached
+      - /app/node_modules
+    environment:
+      # Angular reads these at build time via environment.ts (not at runtime).
+      # They are available here for CI/CD pipeline injection.
+      NODE_ENV: development
+    networks:
+      - aethercore_net

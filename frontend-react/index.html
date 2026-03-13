@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+
+  <!-- ── Viewport & Mobile ─────────────────────────────────────────────────── -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+
+  <!-- ── SEO ───────────────────────────────────────────────────────────────── -->
+  <title>AetherCore · Staking Portal</title>
+  <meta name="description"
+    content="Stake AETH tokens, earn Tiers, and participate in the AetherCore protocol. The premier on-chain staking experience." />
+  <meta name="keywords" content="AetherCore, AETH, staking, DeFi, Web3, blockchain, Ethereum, Sepolia" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="AetherCore Team" />
+
+  <!-- ── Open Graph (social previews) ─────────────────────────────────────── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="AetherCore · Staking Portal" />
+  <meta property="og:description" content="Stake AETH, reach orbit, and earn ier rewards on the AetherCore protocol." />
+  <meta property="og:site_name" content="AetherCore" />
+
+  <!-- ── Twitter Card ──────────────────────────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="AetherCore · Staking Portal" />
+  <meta name="twitter:description"
+    content="Stake AETH, reach orbit, and earn Tier rewards on the AetherCore protocol." />
+
+  <!-- ── Favicon ───────────────────────────────────────────────────────────── -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- ── Google Fonts: Space Grotesk (Web3 aesthetic) ─────────────────────── -->
+  <!--
+      Space Grotesk pairs perfectly with dark-mode Web3 UIs.
+      Preconnect reduces DNS + TLS handshake latency before the font request.
+    -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- ── Critical CSS: prevent white flash before React hydrates ───────────── -->
+  <!--
+      Vite injects the app bundle asynchronously. Without this block, browsers
+      briefly show a white background before the React app renders and applies
+      Tailwind's dark background. Setting background-color here eliminates the
+      flash entirely — even on slow connections.
+    -->
+  <style>
+    /* Base reset — applied before any JS loads */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      /* Design tokens — mirrored in Tailwind config */
+      --color-bg: #0f172a;
+      /* slate-950                   */
+      --color-surface: #1e293b;
+      /* slate-800                   */
+      --color-accent: #818cf8;
+      /* indigo-400                  */
+      --font-sans: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Space Mono', 'Courier New', monospace;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      background-color: var(--color-bg);
+      color: #f8fafc;
+      /* slate-50                    */
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    /* Mount point — fills the viewport so the app can take over immediately */
+    #root {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Loading skeleton shown before React renders */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--color-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      z-index: 9999;
+      transition: opacity 0.3s ease;
+    }
+
+    #loading-screen .logo {
+      font-size: 3rem;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    #loading-screen .label {
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      opacity: 0.8;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.95);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ── Pre-React Loading Screen ──────────────────────────────────────────── -->
+  <!--
+      Displayed while Vite's module graph is fetched and React initialises.
+      React's App component calls document.getElementById('loading-screen').remove()
+      on its first render, or you can hook this to React's useEffect in App.jsx.
+      For now, React's own render replacing #root content hides it automatically
+      when using the Vite dev server's fast HMR.
+    -->
+  <div id="loading-screen" aria-hidden="true">
+    <span class="logo" role="img" aria-label="AetherCore rocket">⚡</span>
+    <span class="label">Initialising AetherCore</span>
+  </div>
+
+  <!-- ── React Mount Point ──────────────────────────────────────────────────── -->
+  <div id="root"></div>
+
+  <!-- ── Vite Entry Point ───────────────────────────────────────────────────── -->
+  <!--
+      type="module" is REQUIRED by Vite. It tells the browser to load this
+      file as an ES Module, enabling:
+        - import/export syntax
+        - top-level await
+        - native code splitting
+      The entry file src/main.jsx bootstraps the React app and calls
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+    -->
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
