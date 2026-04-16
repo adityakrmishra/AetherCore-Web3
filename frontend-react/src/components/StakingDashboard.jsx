@@ -27,9 +27,10 @@ import { ethers } from 'ethers';
 import AntiGravityTokenABI from '../abi/AntiGravityToken.json';
 import CoreProtocolABI     from '../abi/CoreProtocol.json';
 
-// ── Contract addresses from .env (HARDCODED FOR LOCALHOST FIX) ─────────────────
-const TOKEN_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
-const CORE_ADDRESS  = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+// ── Contract addresses from .env (PRODUCTION FIX) ──────────────────────────────
+const TOKEN_ADDRESS = import.meta.env.VITE_LOCAL_TOKEN_ADDRESS || '';
+const CORE_ADDRESS  = import.meta.env.VITE_LOCAL_CORE_ADDRESS  || '';
+const ADMIN_URL     = import.meta.env.VITE_ADMIN_DASHBOARD_URL || 'http://localhost:4200';
 
 // ── Backend API base URL ───────────────────────────────────────────────────────
 // Reads from Vite env var if set, otherwise falls back to the Docker default.
@@ -187,13 +188,20 @@ export default function StakingDashboard() {
   //  FETCH ON-CHAIN DATA
   // ════════════════════════════════════════════════════════════════════════════
 
-  const fetchOnChainData = useCallback(async () => {
+  const fetchOnChainData = useCallback(async (isMounted = { current: true }) => {
     if (!address || !coreRead || !tokenRead) return;
     setIsLoadingData(true);
     console.log('[AetherCore] Fetching on-chain data for:', address);
     try {
-      // Fetch AETH token balance — always safe to call regardless of registration
-      const balance = await tokenRead.balanceOf(address);
+      // Fetch AETH token balance — wraps in a safe try/catch for RPC timeouts
+      let balance = 0n;
+      try {
+        balance = await tokenRead.balanceOf(address);
+      } catch (e) {
+        console.warn('[AetherCore] Could not fetch token balance. RPC might be unstable:', e);
+      }
+      
+      if (!isMounted.current) return;
       setAethBalance(ethers.formatEther(balance));
 
       // getPilotProfile reverts / returns 0x if pilot is not registered on-chain.
@@ -204,6 +212,7 @@ export default function StakingDashboard() {
         const tier       = registered ? Number(profile.activeTier) : 0;
         const staked     = registered ? ethers.formatEther(profile.totalStaked) : '0';
 
+        if (!isMounted.current) return;
         setIsRegistered(registered);
         setActiveTier(tier);
         setStakedBalance(staked);
@@ -211,19 +220,24 @@ export default function StakingDashboard() {
       } catch (profileErr) {
         // BAD_DATA (0x returned) or CALL_EXCEPTION — pilot not on-chain yet.
         console.log('[AetherCore] Pilot not registered on-chain yet. Showing registration screen.');
+        if (!isMounted.current) return;
         setIsRegistered(false);
         setActiveTier(0);
         setStakedBalance('0');
       }
     } catch (err) {
-      console.error('[AetherCore] fetchOnChainData error:', err);
+      console.error('[AetherCore] fetchOnChainData fatal error:', err);
     } finally {
-      setIsLoadingData(false);
+      if (isMounted.current) setIsLoadingData(false);
     }
   }, [address, coreRead, tokenRead]);
 
   useEffect(() => {
-    fetchOnChainData();
+    const isMounted = { current: true };
+    fetchOnChainData(isMounted);
+    return () => {
+      isMounted.current = false;
+    };
   }, [fetchOnChainData]);
 
   // Listen for MetaMask account / chain changes
@@ -460,6 +474,13 @@ export default function StakingDashboard() {
                 {tierInfo.label}
               </span>
             )}
+            
+            {/* Admin Dashboard Cross-Navigation */}
+            <a href={ADMIN_URL} target="_blank" rel="noopener noreferrer" 
+               className="text-xs font-semibold text-violet-400 hover:text-violet-300 border border-violet-500/30 bg-violet-900/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5">
+               <span>🛠</span> Admin
+            </a>
+
             <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5
                             rounded-full border border-slate-700/50">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse-slow shadow-sm shadow-green-400/50" />
