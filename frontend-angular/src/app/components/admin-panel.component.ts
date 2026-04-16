@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../services/api.service';
 import { Web3AdminService } from '../services/web3-admin.service';
+import { environment } from '../../environments/environment';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-admin-panel',
@@ -9,10 +11,13 @@ import { Web3AdminService } from '../services/web3-admin.service';
   imports: [CommonModule],
   templateUrl: './admin-panel.component.html'
 })
-export class AdminPanelComponent implements OnInit {
+export class AdminPanelComponent implements OnInit, OnDestroy {
   stats: any = null;
   leaderboard: any[] = [];
   errorMessage: string | null = null;
+  userPortalUrl = environment.userPortalUrl;
+
+  private subscriptions: Subscription = new Subscription();
 
   constructor(
     private apiService: ApiService,
@@ -24,8 +29,13 @@ export class AdminPanelComponent implements OnInit {
     this.loadLeaderboard();
   }
 
+  ngOnDestroy(): void {
+    // Memory leak prevention (Pass 2 Audit: clear all active RxJS calls on unmount)
+    this.subscriptions.unsubscribe();
+  }
+
   loadApiStats(): void {
-    this.apiService.getProtocolStats().subscribe({
+    this.subscriptions.add(this.apiService.getProtocolStats().subscribe({
       next: (response: any) => {
         // Unpack the data object and map snake_case to camelCase
         const rawStats = response.data || response;
@@ -38,19 +48,19 @@ export class AdminPanelComponent implements OnInit {
       error: (err: any) => {
         console.error('Stats Error:', err);
       }
-    });
+    }));
   }
 
   loadLeaderboard(): void {
     // Changed getPilotLeaderboard to getLeaderboard
-    this.apiService.getLeaderboard(1, 25).subscribe({
+    this.subscriptions.add(this.apiService.getLeaderboard(1, 25).subscribe({
       next: (response: any) => {
         this.leaderboard = response.data || [];
       },
       error: (err: any) => { // Added : any here
         console.error('Leaderboard Error:', err);
       }
-    });
+    }));
   }
 
   async connectWallet(): Promise<void> {
